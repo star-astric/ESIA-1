@@ -31,7 +31,7 @@ export default function Storefront({
   const categorySlug = categorySlugProp ?? VIEW_CATEGORY[view];
   const [categoryName, setCategoryName] = useState("");
   const [products, setProducts] = useState<CatalogProduct[]>([]);
-  const [loading, setLoading] = useState(view !== "story");
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
@@ -56,10 +56,6 @@ export default function Storefront({
   }, [categorySlug, categories, retryKey]);
 
   useEffect(() => {
-    if (view === "story") {
-      setLoading(false);
-      return;
-    }
     let current = true;
     setLoading(true);
     setError(null);
@@ -81,12 +77,8 @@ export default function Storefront({
     };
   }, [view, categorySlug, retryKey]);
 
-  const title = view === "story" ? "قصتنا" : categorySlug ? categoryName || "الفئة" : "اكتشفي المنتجات";
-  const subtitle = view === "story"
-    ? "إيسيا، تفاصيل هادئة وأناقة يومية."
-    : categorySlug
-      ? ""
-      : "قطع مختارة لإطلالة أنيقة في كل مناسبة";
+  const title = categorySlug ? categoryName || "الفئة" : "اكتشفي المنتجات";
+  const subtitle = categorySlug ? "" : "قطع مختارة لإطلالة أنيقة في كل مناسبة";
 
   return (
     <SiteChrome
@@ -95,35 +87,20 @@ export default function Storefront({
       cart={cart}
       showGuestSignIn={showGuestSignIn}
     >
-      {view === "story" ? (
-        <section className="mx-auto grid max-w-[1100px] items-center gap-8 px-6 py-16 md:grid-cols-2">
-          <div className="rounded-3xl border bg-white p-12 text-center" style={{ borderColor: "var(--line)" }}>
-            <img src="/assets/esia-logo-hero.png?v=3" alt="ESIA" className="mx-auto max-h-80 object-contain" />
-          </div>
-          <div>
-            <p className="mb-3 text-xs font-bold tracking-[0.14em]" style={{ color: "var(--gold)" }}>ESIA COUTURE</p>
-            <h1 className="mb-4 font-marcellus text-4xl" style={{ color: "var(--plum)" }}>قصتنا</h1>
-            <p className="leading-8" style={{ color: "var(--plum-soft)" }}>
-              نصمم قطعاً تجمع بين أصالة التفاصيل وروح عصرية هادئة. اكتشفي المنتجات المتاحة في متجر إيسيا.
-            </p>
-            <button type="button" onClick={() => onNavigate("home")} className="mt-6 rounded-xl px-6 py-3 font-bold text-white" style={{ background: "var(--rose-deep)" }}>
-              تسوقي المجموعة
-            </button>
-          </div>
-        </section>
-      ) : (
-        <>
+      <>
           {view === "home" && (
             <section className="mx-auto max-w-[1260px] px-4 pt-8">
-              <div className="grid min-h-[360px] overflow-hidden rounded-3xl border bg-white lg:grid-cols-2" style={{ borderColor: "var(--line)" }}>
-                <div className="flex min-h-[260px] items-center justify-center bg-[#f5e9e8] p-8">
-                  <img src="/assets/esia-logo-hero.png?v=3" alt="ESIA Couture" className="max-h-72 object-contain" />
-                </div>
-                <div className="flex flex-col justify-center p-8 lg:p-14">
-                  <p className="text-xs font-bold tracking-[0.18em]" style={{ color: "var(--gold)" }}>ESIA HAUTE COUTURE</p>
-                  <h1 className="mt-4 font-marcellus text-4xl" style={{ color: "var(--plum)" }}>إطلالة ملكية بتفاصيل هادئة</h1>
-                  <p className="mt-4 leading-8" style={{ color: "var(--plum-soft)" }}>اكتشفي المنتجات المتاحة حالياً في مجموعتنا.</p>
-                  <button type="button" onClick={() => document.getElementById("explore")?.scrollIntoView({ behavior: "smooth" })} className="mt-6 w-fit rounded-xl px-6 py-3 font-bold text-white" style={{ background: "var(--rose-deep)" }}>
+              <div className="overflow-hidden rounded-3xl border bg-white" style={{ borderColor: "var(--line)" }}>
+                <img src="/esia-hero.png?v=1" alt="ESIA حيث الأناقة والجمال" className="block h-auto w-full" />
+                <div className="flex flex-col gap-5 p-6 sm:p-8 md:flex-row md:items-center md:justify-between" style={{ background: "#fffeff" }}>
+                  <div>
+                    <p className="text-xs font-bold tracking-[0.18em]" style={{ color: "var(--plum)" }}>ESIA HAUTE COUTURE</p>
+                    <h1 className="mt-2 font-marcellus text-3xl sm:text-4xl" style={{ color: "var(--plum)" }}>
+                      هنا <bdi dir="ltr">ESIA</bdi> حيث الأناقة والجمال
+                    </h1>
+                    <p className="mt-3 leading-8" style={{ color: "var(--plum-soft)" }}>اكتشفي المنتجات المتاحة حالياً في مجموعتنا.</p>
+                  </div>
+                  <button type="button" onClick={() => document.getElementById("explore")?.scrollIntoView({ behavior: "smooth" })} className="w-fit rounded-xl px-6 py-3 font-bold text-white" style={{ background: "var(--rose-deep)" }}>
                     استكشفي المنتجات
                   </button>
                 </div>
@@ -158,13 +135,12 @@ export default function Storefront({
               <p className="py-20 text-center" style={{ color: "var(--plum-soft)" }}>لا توجد منتجات متاحة في هذه الفئة حالياً.</p>
             )}
             {!loading && !error && products.length > 0 && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
                 {products.map((item) => <ProductCard key={item.id} item={item} onOpen={(id) => onNavigate("product", id)} />)}
               </div>
             )}
           </section>
-        </>
-      )}
+      </>
     </SiteChrome>
   );
 }

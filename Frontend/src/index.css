@@ -5,12 +5,13 @@
   --ivory: #fbf5ef;
   --ivory-deep: #f3e9de;
   --blush-soft: #fbedef;
+  --page-pink: #fff5f7;
   --rose: #c67b90;
   --rose-deep: #9a4f63;
   --plum: #382530;
   --plum-soft: #6b5460;
   --gold: #c6a15b;
-  --sage-deep: #7c7856;
+  --sage-deep: #7b7f5f;
   --line: rgba(198, 161, 91, 0.28);
   --red: #b03a3a;
   --green: #5c8a5c;
@@ -29,7 +30,7 @@ body,
 body {
   direction: rtl;
   font-family: "Tajawal", sans-serif;
-  background: #ffb6c14f; 
+  background: var(--page-pink);
   color: var(--plum);
   margin: 0;
 }

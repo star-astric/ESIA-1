@@ -24,12 +24,11 @@ export function SiteChrome({
       view: "category:" + category.slug,
       label: category.name,
     })),
-    { view: "story", label: "قصتنا" },
   ];
   const activeView = view === "product" ? "home" : view;
 
   return (
-    <div className="flex min-h-full flex-col bg-white">
+    <div className="flex min-h-full flex-col" style={{ background: "var(--page-pink)" }}>
       <header className="fixed inset-x-0 top-0 z-40 border-b bg-white/95 backdrop-blur-sm" style={{ borderColor: "var(--line)" }}>
         <div className="mx-auto flex h-[88px] max-w-[1260px] items-center justify-between gap-4 px-4">
           <nav className="hidden items-center gap-5 md:flex">
@@ -70,7 +69,7 @@ export function SiteChrome({
         </nav>
       </header>
       <main className="flex-1 pt-[120px] md:pt-[104px]">{children}</main>
-      <footer className="mt-12 border-t px-5 py-8" style={{ borderColor: "var(--line)", background: "var(--ivory-deep)" }}>
+      <footer className="mt-12 border-t px-5 py-8" style={{ borderColor: "var(--line)", background: "var(--page-pink)" }}>
         <div className="mx-auto flex max-w-[1260px] flex-wrap items-center justify-between gap-4 text-xs" style={{ color: "var(--plum-soft)" }}>
           <span>جميع الحقوق محفوظة © إيسيا</span>
           <div className="flex flex-wrap gap-4">
@@ -111,5 +110,5 @@ function BrandLogo() {
   const [failed, setFailed] = useState(false);
   return failed
     ? <span className="font-marcellus text-2xl tracking-[0.16em]" style={{ color: "var(--rose-deep)" }}>ESIA</span>
-    : <img src="/logo2.jpeg?v=1" alt="ESIA" className="max-h-16 max-w-[150px] object-contain" onError={() => setFailed(true)} />;
+    : <img src="/esia-brand.png?v=6" alt="ESIA Couture" className="h-[60px] w-[150px] object-contain sm:h-16 sm:w-40" onError={() => setFailed(true)} />;
 }
