@@ -21,6 +21,12 @@ export enum ProductSize {
   XL = "XL",
   XXL = "2X",
   XXXL = "3X",
+  KIDS_6_7 = "6-7",
+  KIDS_7_8 = "7-8",
+  KIDS_8_9 = "8-9",
+  KIDS_9_10 = "9-10",
+  KIDS_10_11 = "10-11",
+  KIDS_11_12 = "11-12",
 }
 
 export enum OrderStatus {
