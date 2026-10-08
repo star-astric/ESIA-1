@@ -124,7 +124,7 @@ function parseSizesInput(raw: any): { size: string; isAvailable: boolean }[] {
   const parsedSizes = tryParseJsonArray(raw);
   const arr = parsedSizes !== null ? parsedSizes : raw;
   if (!Array.isArray(arr) || arr.length === 0) {
-    throw AppError.badRequest("sizes is required and must be a non-empty array of { size, isAvailable } or size strings (S,M,L,XL)");
+    throw AppError.badRequest("sizes is required and must be a non-empty array of { size, isAvailable } or size strings (XS,S,M,L,XL,2X,3X)");
   }
   if (arr.length > 10) throw AppError.badRequest("sizes must contain at most 10 items");
   const validSizes = Object.values(SizeEnum);
@@ -217,6 +217,44 @@ async function resolvePaletteColors(manager: any, colorIds: number[]) {
   }
   const paletteMap = new Map<number, any>(paletteColors.map((pc) => [pc.id, pc]));
   return colorIds.map((id) => paletteMap.get(id)!);
+}
+
+async function syncProductColors(manager: any, productId: number, paletteColors: any[]) {
+  const colorRepo = manager.getRepository(ProductColor);
+  const existing = await colorRepo.find({ where: { productId } });
+  const retainedIds = new Set<number>();
+  const synchronized: ProductColor[] = [];
+
+  for (const source of paletteColors) {
+    const match = existing.find((color: ProductColor) =>
+      !retainedIds.has(color.id) && color.hexCode.toLowerCase() === String(source.hexCode).toLowerCase(),
+    );
+    if (match) {
+      retainedIds.add(match.id);
+      match.nameEn = source.nameEn;
+      match.nameAr = source.nameAr;
+      match.hexCode = source.hexCode;
+      synchronized.push(await colorRepo.save(match));
+    } else {
+      synchronized.push(await colorRepo.save(colorRepo.create({
+        productId,
+        nameEn: source.nameEn,
+        nameAr: source.nameAr,
+        hexCode: source.hexCode,
+      })));
+    }
+  }
+
+  const removed = existing.filter((color: ProductColor) => !retainedIds.has(color.id));
+  if (removed.length) await colorRepo.remove(removed);
+  return synchronized;
+}
+
+function cleanupUploadedFiles(files: Express.Multer.File[]): void {
+  for (const file of files) {
+    try { deleteFile(`/uploads/products/images/${file.filename}`); } catch {}
+    try { deleteFile((file as any).path); } catch {}
+  }
 }
 
 async function loadFullProduct(id: number) {
@@ -385,7 +423,6 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
 
   try {
     const txProductRepo = queryRunner.manager.getRepository(Product);
-    const txColorRepo = queryRunner.manager.getRepository(ProductColor);
     const txSizeRepo = queryRunner.manager.getRepository(ProductSize);
 
     const entity = await txProductRepo.findOne({ where: { id } });
@@ -411,13 +448,7 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
     if (colorIds) {
       // resolve BEFORE deleting: ids may reference this product's own color rows
       const paletteColors = await resolvePaletteColors(queryRunner.manager, colorIds);
-      await txColorRepo.delete({ productId: id });
-      await txColorRepo.save(paletteColors.map((src: any) => txColorRepo.create({
-        productId: id,
-        nameEn: src.nameEn,
-        nameAr: src.nameAr,
-        hexCode: src.hexCode,
-      })));
+      await syncProductColors(queryRunner.manager, id, paletteColors);
     }
     if (sizes) {
       await txSizeRepo.delete({ productId: id });
@@ -569,7 +600,7 @@ export const getAllProducts = asyncHandler(async (req: Request, res: Response) =
       tag: p.tag,
       isActive: p.isActive,
       coverImageUrl: cover,
-      images: (p.images ?? []).map((img) => ({ id: img.id, imageUrl: img.imageUrl, sortOrder: img.sortOrder })),
+      images: (p.images ?? []).map((img) => ({ id: img.id, imageUrl: img.imageUrl, sortOrder: img.sortOrder, colorId: img.colorId })),
       colors: p.colors,
       createdAt: (p as any).createdAt,
     };
@@ -583,7 +614,8 @@ export const getProductById = asyncHandler(async (req: Request, res: Response) =
   const product = await loadFullProduct(id);
   if (!product) throw AppError.notFound("Product not found");
   // expose effective cover (own cover, else first gallery image) without persisting the fallback
-  const data = { ...product, coverImageUrl: product.coverImageUrl || product.images?.[0]?.imageUrl || null };
+  const sharedGalleryCover = product.images?.find((image) => image.colorId == null)?.imageUrl;
+  const data = { ...product, coverImageUrl: product.coverImageUrl || sharedGalleryCover || null };
   res.status(200).json({ success: true, message: "Operation completed successfully", data, statusCode: 200 });
 });
 
@@ -597,27 +629,66 @@ export const addProductImages = asyncHandler(async (req: Request, res: Response)
   const { gallery } = splitCoverAndGallery(collectUploadedFiles(req));
   if (gallery.length === 0) throw AppError.badRequest("No image files provided (fieldnames: image[0], image[1], ... or images)");
 
+  let colorId: number | null = null;
+  if (req.body.colorId !== undefined && req.body.colorId !== null && req.body.colorId !== "") {
+    colorId = Number(req.body.colorId);
+    if (!Number.isInteger(colorId) || colorId <= 0) {
+      cleanupUploadedFiles(gallery);
+      throw AppError.badRequest("colorId must be a positive integer belonging to this product");
+    }
+  }
+
   const productRepo = AppDataSource.getRepository(Product);
   const imageRepo = AppDataSource.getRepository(ProductImage);
 
   const product = await productRepo.findOne({ where: { id }, relations: { images: true } });
   if (!product) {
-    for (const f of gallery) {
-      try { deleteFile(`/uploads/products/images/${f.filename}`); } catch {}
-      try { deleteFile((f as any).path); } catch {}
-    }
+    cleanupUploadedFiles(gallery);
     throw AppError.notFound("Product not found");
+  }
+
+  if (colorId !== null) {
+    const productColor = await AppDataSource.getRepository(ProductColor).findOne({ where: { id: colorId, productId: id } });
+    if (!productColor) {
+      cleanupUploadedFiles(gallery);
+      throw AppError.badRequest("colorId must belong to this product");
+    }
   }
 
   const nextOrder = product.images.length > 0 ? Math.max(...product.images.map((i) => i.sortOrder)) + 1 : 0;
   await imageRepo.save(gallery.map((file, idx) => imageRepo.create({
     productId: id,
+    colorId,
     imageUrl: fileUrl(file),
     sortOrder: nextOrder + idx,
   })));
 
   const updated = await loadFullProduct(id);
   res.status(200).json({ success: true, message: "Images added successfully", data: updated, statusCode: 200 });
+});
+
+// Assign an existing gallery image to a product color, or clear the assignment.
+export const setProductImageColor = asyncHandler(async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const imageId = Number(req.params.imageId);
+  if (!Number.isInteger(id) || !Number.isInteger(imageId)) throw AppError.badRequest("Invalid product or image id");
+
+  const imageRepo = AppDataSource.getRepository(ProductImage);
+  const image = await imageRepo.findOne({ where: { id: imageId, productId: id } });
+  if (!image) throw AppError.notFound("Image not found for this product");
+
+  let colorId: number | null = null;
+  if (req.body.colorId !== undefined && req.body.colorId !== null && req.body.colorId !== "") {
+    colorId = Number(req.body.colorId);
+    if (!Number.isInteger(colorId) || colorId <= 0) throw AppError.badRequest("colorId must be a positive integer belonging to this product");
+    const productColor = await AppDataSource.getRepository(ProductColor).findOne({ where: { id: colorId, productId: id } });
+    if (!productColor) throw AppError.badRequest("colorId must belong to this product");
+  }
+
+  image.colorId = colorId;
+  await imageRepo.save(image);
+  const updated = await loadFullProduct(id);
+  res.status(200).json({ success: true, message: "Image color updated successfully", data: updated, statusCode: 200 });
 });
 
 // Remove image by its sort_order (or id)

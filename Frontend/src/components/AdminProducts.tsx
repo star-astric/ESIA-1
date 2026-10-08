@@ -5,7 +5,7 @@ import { productsService } from "../services/products";
 import { colorsService } from "../services/colors";
 
 type PaletteColor = { id: number; nameEn: string; nameAr: string; hexCode: string };
-type ProductImage = { id: number; imageUrl: string; sortOrder: number };
+type ProductImage = { id: number; imageUrl: string; sortOrder: number; colorId?: number | null };
 type ProductRow = {
   id: number;
   name: string;
@@ -23,7 +23,7 @@ type ProductRow = {
   images?: ProductImage[];
 };
 
-const SIZES = ["S", "M", "L", "XL"];
+const SIZES = ["XS", "S", "M", "L", "XL", "2X", "3X"];
 const inputClass = "mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none focus:border-[#9a4f63]";
 const btnClass = "rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50";
 
@@ -54,6 +54,7 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
   const [selectedSizes, setSelectedSizes] = useState<string[]>(["S", "M", "L"]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
+  const [galleryColorId, setGalleryColorId] = useState("");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [globalPalette, setGlobalPalette] = useState<PaletteColor[]>([]);
 
@@ -105,6 +106,7 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
     setImageFiles([]);
     setCoverFile(null);
     setNewImageFiles([]);
+    setGalleryColorId("");
   };
 
   const startNew = () => {
@@ -126,12 +128,19 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
       shape: product.defaultShape ?? "",
       isActive: product.isActive !== false,
     });
-    setSelectedColorIds((product.colors ?? []).map((c) => c.id).filter((id) => Number.isFinite(id)));
+    setSelectedColorIds((product.colors ?? []).map((productColor) => {
+      const matchingPaletteColor = palette.find((color) =>
+        color.hexCode.toLowerCase() === productColor.hexCode.toLowerCase() ||
+        color.nameEn.toLowerCase() === productColor.nameEn.toLowerCase(),
+      );
+      return matchingPaletteColor?.id ?? productColor.id;
+    }).filter((id) => Number.isFinite(id)));
     const sizes = (product.sizes ?? []).filter((s) => s.isAvailable !== false).map((s) => s.size);
     setSelectedSizes(sizes.length ? sizes : []);
     setImageFiles([]);
     setCoverFile(null);
     setNewImageFiles([]);
+    setGalleryColorId("");
   };
 
   const selectProduct = async (id: number) => {
@@ -264,10 +273,29 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
     setError(null);
     setNotice(null);
     try {
-      const updated = await productsService.addImages(selected.id, makeGalleryForm(newImageFiles));
+      const formData = makeGalleryForm(newImageFiles);
+      if (galleryColorId) formData.append("colorId", galleryColorId);
+      const updated = await productsService.addImages(selected.id, formData);
       setSelected(updated as ProductRow);
       setNewImageFiles([]);
       setNotice("تمت إضافة الصور.");
+      await loadProducts();
+    } catch (saveError) {
+      setError(getApiErrorMessage(saveError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setImageColor = async (image: ProductImage, colorId: number | null) => {
+    if (!selected || image.colorId === colorId) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await productsService.setImageColor(selected.id, image.id, colorId);
+      setSelected(updated as ProductRow);
+      setNotice("تم تحديث لون الصورة.");
       await loadProducts();
     } catch (saveError) {
       setError(getApiErrorMessage(saveError));
@@ -373,7 +401,7 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
                   {!isEditing && (
                     <>
                       <label className="text-sm">صورة الغلاف (الخارجية)<input type="file" accept="image/*" onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)} className={inputClass} /><span className="mt-1 block text-xs text-gray-500">صورة واحدة تظهر في البطاقات. إن لم تختر، تُستخدم أول صورة من المعرض.</span></label>
-                      <label className="text-sm">صور المعرض<input type="file" accept="image/*" multiple onChange={(event) => setImageFiles(Array.from(event.target.files ?? []))} className={inputClass} /><span className="mt-1 block text-xs text-gray-500">يتم رفع الصور مباشرة مع إنشاء المنتج.</span></label>
+                      <label className="text-sm">صور المعرض<input type="file" accept="image/*" multiple onChange={(event) => setImageFiles(Array.from(event.target.files ?? []))} className={inputClass} /><span className="mt-1 block text-xs text-gray-500">بعد حفظ المنتج، يمكنك اختيار لون لإضافة صور خاصة به.</span></label>
                     </>
                   )}
                   <button disabled={busy || !categories.length || !palette.length} className={btnClass + " md:col-span-2 text-white"} style={{ background: "var(--rose-deep)" }}>{busy ? "جارٍ الحفظ..." : isEditing ? "حفظ التعديلات" : "إنشاء المنتج"}</button>
@@ -399,8 +427,14 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
 
                   <section className="rounded-2xl bg-white p-5" style={{ border: "1px solid var(--line)" }}>
                     <h2 className="text-xl font-bold">صور المعرض: {selected.name}</h2>
-                    <p className="mb-4 mt-1 text-sm text-gray-600">صور الملفات فقط، مرتبة حسب الترتيب.</p>
+                    <p className="mb-4 mt-1 text-sm text-gray-600">ارفع عدة صور للون نفسه، أو اتركها صورًا مشتركة لكل الألوان. يمكنك أيضًا تغيير لون الصور الموجودة.</p>
                     <div className="mb-4 flex flex-wrap gap-2">
+                      <label className="w-full text-sm">لون الصور الجديدة
+                        <select value={galleryColorId} onChange={(event) => setGalleryColorId(event.target.value)} className="mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-sm" disabled={busy}>
+                          <option value="">صور مشتركة لكل الألوان</option>
+                          {(selected.colors ?? []).map((color) => <option key={color.id} value={color.id}>{color.nameAr || color.nameEn}</option>)}
+                        </select>
+                      </label>
                       <input type="file" accept="image/*" multiple onChange={(event) => setNewImageFiles(Array.from(event.target.files ?? []))} className="min-w-0 flex-1 rounded-xl border p-2 text-sm" />
                       <button type="button" disabled={busy || !newImageFiles.length} onClick={() => void addImages()} className={btnClass + " text-white"} style={{ background: "var(--rose-deep)" }}>رفع الصور</button>
                     </div>
@@ -415,6 +449,12 @@ export default function AdminProducts({ onNavigate, onLogout }: { onNavigate: (v
                             <button type="button" disabled={busy} onClick={() => void removeImage(image)} className="text-red-700">حذف</button>
                           </div>
                         </div>
+                        <label className="block px-2 pb-2 text-xs">صورة لـ
+                          <select value={image.colorId ?? ""} disabled={busy} onChange={(event) => void setImageColor(image, event.target.value ? Number(event.target.value) : null)} className="mt-1 w-full rounded-lg border p-2 text-xs">
+                            <option value="">كل الألوان</option>
+                            {(selected.colors ?? []).map((color) => <option key={color.id} value={color.id}>{color.nameAr || color.nameEn}</option>)}
+                          </select>
+                        </label>
                       </div>
                     ))}</div>}
                   </section>

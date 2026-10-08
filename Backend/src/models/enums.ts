@@ -14,10 +14,13 @@ export enum DefaultShape {
 }
 
 export enum ProductSize {
+  XS = "XS",
   S = "S",
   M = "M",
   L = "L",
   XL = "XL",
+  XXL = "2X",
+  XXXL = "3X",
 }
 
 export enum OrderStatus {

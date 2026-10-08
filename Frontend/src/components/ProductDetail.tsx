@@ -82,13 +82,20 @@ export default function ProductDetail({
     };
   }, [productId, retryKey]);
 
-  // Gallery: cover (outside image) first, then gallery files, de-duplicated.
-  const images = useMemo(() => {
-    const gallery = (product?.images.map((image) => image.imageUrl) ?? []).filter(Boolean);
-    const cover = product?.img;
-    return cover ? [cover, ...gallery.filter((src) => src !== cover)] : gallery;
-  }, [product]);
   const color = product?.colors[selectedColor] ?? product?.colors[0];
+  // Show the selected color's images when it has its own gallery, otherwise show shared images.
+  const images = useMemo(() => {
+    if (!product) return [];
+    const colorId = product.colors[selectedColor]?.backendId;
+    const colorImages = colorId === undefined
+      ? []
+      : product.images.filter((item) => item.colorId === colorId);
+    if (colorImages.length) return colorImages.map((item) => item.imageUrl);
+
+    const sharedImages = product.images.filter((item) => item.colorId == null).map((item) => item.imageUrl).filter(Boolean);
+    const cover = product.coverImageUrl || sharedImages[0] || "";
+    return cover ? [cover, ...sharedImages.filter((src) => src !== cover)] : sharedImages;
+  }, [product, selectedColor]);
   const image = images[activeImage] ?? "";
   const tagLabel = product?.tag === "new" ? "جديد" : product?.tag === "best_seller" ? "الأكثر مبيعاً" : null;
   const availableSizes = product ? product.sizes.filter((size) => !product.unavailableSizes.includes(size)) : [];
@@ -141,6 +148,10 @@ export default function ProductDetail({
                   {!product.isActive && <span className="absolute bottom-3 start-3 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white">غير متاح حالياً</span>}
                 </div>
                 {images.length > 1 && <div className="mt-3 flex gap-2 overflow-x-auto">{images.map((src, index) => <button key={index + "-" + src} type="button" onClick={() => setActiveImage(index)} className="h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2" style={{ borderColor: activeImage === index ? "var(--rose-deep)" : "var(--line)" }}><img src={src} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+                {product.colors.length > 0 && <div className="mt-4">
+                  <p className="mb-3 text-sm font-semibold">اللون: {color?.nameAr || color?.nameEn}</p>
+                  <div className="flex gap-3">{product.colors.map((item, index) => <button key={item.backendId ?? index} type="button" aria-label={item.nameAr} aria-pressed={selectedColor === index} onClick={() => { setSelectedColor(index); setActiveImage(0); }} className="h-8 w-8 rounded-full border-2" style={{ background: item.hexCode ?? item.color, borderColor: selectedColor === index ? "var(--plum)" : "var(--line)" }} />)}</div>
+                </div>}
               </div>
               <div className="rounded-3xl bg-white p-6 md:p-8" style={{ border: "1px solid var(--line)" }}>
                 {product.categoryName && <p className="text-xs" style={{ color: "var(--gold)" }}>{product.categoryName}</p>}
@@ -150,11 +161,6 @@ export default function ProductDetail({
                   <span className="text-2xl font-bold" style={{ color: "var(--rose-deep)" }}>{product.price.toLocaleString()} ج.م</span>
                   {product.originalPrice !== null && <span className="line-through" style={{ color: "var(--gray)" }}>{product.originalPrice.toLocaleString()} ج.م</span>}
                 </div>
-
-                {product.colors.length > 0 && <div className="mt-7">
-                  <p className="mb-3 text-sm font-semibold">اللون: {color?.nameAr || color?.nameEn}</p>
-                  <div className="flex gap-3">{product.colors.map((item, index) => <button key={item.backendId ?? index} type="button" aria-label={item.nameAr} onClick={() => setSelectedColor(index)} className="h-8 w-8 rounded-full border-2" style={{ background: item.hexCode ?? item.color, borderColor: selectedColor === index ? "var(--plum)" : "var(--line)" }} />)}</div>
-                </div>}
 
                 <div className="mt-7">
                   <p className="mb-3 text-sm font-semibold">المقاس</p>

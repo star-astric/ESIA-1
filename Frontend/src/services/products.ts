@@ -49,6 +49,13 @@ export const productsService = {
     );
     return unwrapApiResult<any>(response);
   },
+  async setImageColor(id: string | number, imageId: number, colorId: number | null) {
+    const response = await api.patch(
+      "/products/" + encodeURIComponent(String(id)) + "/images/" + encodeURIComponent(String(imageId)) + "/color",
+      { colorId: colorId ?? "" },
+    );
+    return unwrapApiResult<any>(response);
+  },
   async removeImage(id: string | number, order: number) {
     const response = await api.delete(
       "/products/" + encodeURIComponent(String(id)) + "/images/" + encodeURIComponent(String(order)),

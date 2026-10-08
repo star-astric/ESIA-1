@@ -11,6 +11,7 @@ import {
   uploadProductCover,
   removeProductCover,
   addProductImages,
+  setProductImageColor,
   removeProductImage,
   reorderProductImages,
 } from "../controllers/product.controller";
@@ -34,6 +35,7 @@ router.delete("/:id/cover", protect, adminOnly, removeProductCover);
 
 // Gallery management for existing product (files only, ordered by sort_order)
 router.post("/:id/images", protect, adminOnly, upload.any(), processMedia, addProductImages);
+router.patch("/:id/images/:imageId/color", protect, adminOnly, setProductImageColor);
 // Alternative alias
 router.post("/:id/media", protect, adminOnly, upload.any(), processMedia, addProductImages);
 
